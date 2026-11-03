@@ -29,6 +29,36 @@ function GetModelViewProjection( projectionMatrix, translationX, translationY, t
 }
 
 
+// Vertex shader source code
+var objVS = `
+	attribute vec3 pos;
+	uniform mat4 mvp;
+	uniform int swapYZ;
+
+	float decideSwap(float a, float b, int swap) {
+		float clampedSwap = clamp(float(swap), 0.0, 1.0);
+		return (1.0 - clampedSwap) * a + clampedSwap * b;
+	}
+
+	vec2 getSwapDecided(vec2 co, int swap) {
+		return vec2(decideSwap(co.x, co.y, swap), decideSwap(co.y, co.x, swap));
+	}
+
+	void main()
+	{
+		vec4 finalPos = vec4(pos.x, getSwapDecided(pos.yz, swapYZ), 1);
+		gl_Position = mvp * finalPos;
+	}
+`;
+// Fragment shader source code
+var objFS = `
+	precision mediump float;
+	void main()
+	{
+		gl_FragColor = vec4(1,gl_FragCoord.z*gl_FragCoord.z,0,1);
+	}
+`;
+
 // [TO-DO] Complete the implementation of the following class.
 
 class MeshDrawer
@@ -36,7 +66,15 @@ class MeshDrawer
 	// The constructor is a good place for taking care of the necessary initializations.
 	constructor()
 	{
-		// [TO-DO] initializations
+		this.prog = InitShaderProgram(objVS, objFS)
+
+		this.mvp = gl.getUniformLocation(this.prog, 'mvp')
+
+		this.swap = gl.getUniformLocation(this.prog, 'swapYZ')
+
+		this.pos = gl.getAttribLocation(this.prog, 'pos')
+
+		this.vertBuffer = gl.createBuffer()
 	}
 	
 	// This method is called every time the user opens an OBJ file.
@@ -53,6 +91,9 @@ class MeshDrawer
 	{
 		// [TO-DO] Update the contents of the vertex buffer objects.
 		this.numTriangles = vertPos.length / 3;
+
+		gl.bindBuffer(gl.ARRAY_BUFFER, this.vertBuffer)
+		gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(vertPos), gl.STATIC_DRAW)
 	}
 	
 	// This method is called when the user changes the state of the
@@ -61,6 +102,9 @@ class MeshDrawer
 	swapYZ( swap )
 	{
 		// [TO-DO] Set the uniform parameter(s) of the vertex shader
+
+		gl.useProgram(this.prog)
+		gl.uniform1i(this.swap, swap)
 	}
 	
 	// This method is called to draw the triangular mesh.
@@ -70,6 +114,11 @@ class MeshDrawer
 	{
 		// [TO-DO] Complete the WebGL initializations before drawing
 
+		gl.useProgram(this.prog)
+		gl.uniformMatrix4fv(this.mvp, false, trans)
+		gl.bindBuffer(gl.ARRAY_BUFFER, this.vertBuffer)
+		gl.vertexAttribPointer(this.vertPos, 3, gl.FLOAT, false, 0, 0)
+		gl.enableVertexAttribArray(this.vertPos)
 		gl.drawArrays( gl.TRIANGLES, 0, this.numTriangles );
 	}
 	
